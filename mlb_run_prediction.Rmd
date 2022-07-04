@@ -1,0 +1,163 @@
+---
+title: "mlb_run_prediction"
+output: html_document
+date: '2022-07-03'
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+
+library(tidyverse) 
+library(janitor)
+library(rvest)
+
+```
+
+### MLB ###
+
+```{r}
+
+teams <- c("CHC","STL","PIT","MIL","CIN",
+           "LAD","ARI","SDP","SFG","COL",
+           "NYM","WSN","MIA","PHI","ATL",
+           "NYY","BOS","BAL","TOR","TBR",
+           "DET","CHW","MIN","CLE","KCR",
+           "HOU","TEX","OAK","SEA","LAA")
+
+```
+
+```{r}
+
+mlb_total_table <- tibble()
+
+for(i in teams) {
+  
+  url <- paste0("https://www.baseball-reference.com/teams/",i,"/2022-schedule-scores.shtml")
+    a <- read_html(url) %>%
+      html_table() %>%
+      pluck(1) %>%
+      rename(a = 3, venue = 5) %>%
+      as_tibble() %>%
+      clean_names() %>%
+      filter(tm != "Tm",
+             inn != "Game Preview, and Matchups") %>%
+      select(tm, opp, venue, r) %>%
+      mutate(r = as.numeric(r))
+  
+  mlb_total_table <- rbind(a, mlb_total_table)
+  
+}
+
+```
+
+```{r}
+
+mlb_model <- lm(r ~ tm + opp + venue, mlb_total_table)
+mlb_model_table <- tibble()
+level = .9
+  
+for(i in teams) {
+  for(j in teams) {
+    a <- predict(mlb_model, newdata = data.frame(tm = i, opp = j, venue = "@"), interval = 'confidence',
+                 level = level)
+    b <- predict(mlb_model, newdata = data.frame(tm = j, opp = i, venue = ""), interval = 'confidence',
+                 level = level)
+    c <- rbind(a,b) %>%
+      as_tibble() %>%
+      select(lwr, upr) %>%
+      mutate(tm = i,
+             opp = j) %>%
+      summarise(tm = tm,
+                opp = opp,
+                lwr = sum(lwr),
+                upr = sum(upr))
+    
+  mlb_model_table <- rbind(mlb_model_table, c) 
+  
+  }
+}
+
+mlb_model_table <- mlb_model_table %>%
+  filter(row_number() %% 2 == 1,
+         tm != opp)
+
+```
+
+### WNBA ###
+
+```{r}
+
+wnba_teams <- c("CHI","LAS","NYL","MIN","SEA","PHO",
+                "IND","CON","ATL","DAL","WAS","LVA")
+
+```
+
+```{r}
+
+wnba_total_table <- tibble()
+
+for(i in wnba_teams) {
+  
+  url <- paste0("https://www.basketball-reference.com/wnba/teams/",i,"/2022_games.html")
+    a <- read_html(url) %>%
+      html_table() %>%
+      pluck(1) %>%
+      rename(venue = 3, w_l = 5) %>%
+      as_tibble() %>%
+      clean_names() %>%
+      filter(tm != "Tm",
+             tm != "") %>%
+      mutate(team = i) %>%
+      rename(score = tm) %>%
+      select(team, opponent, venue, score) %>%
+      mutate(score = as.numeric(score),
+             opponent = case_when(opponent == "Los Angeles Sparks" ~ "LAS",
+                                  opponent == "New York Liberty" ~ "NYL",
+                                  opponent == "Chicago Sky" ~ "CHI",
+                                  opponent == "Minnesota Lynx" ~ "MIN",
+                                  opponent == "Phoenix Mercury" ~ "PHO",
+                                  opponent == "Connecticut Sun" ~ "CON",
+                                  opponent == "Seattle Storm" ~ "SEA",
+                                  opponent == "Washington Mystics" ~ "WAS",
+                                  opponent == "Indiana Fever" ~ "IND",
+                                  opponent == "Dallas Wings" ~ "DAL",
+                                  opponent == "Las Vegas Aces" ~ "LVA",
+                                  opponent == "Atlanta Dream" ~ "ATL"))
+  
+  wnba_total_table <- rbind(a, wnba_total_table)
+  
+}
+
+```
+
+```{r}
+
+wnba_model <- lm(score ~ team + opponent + venue, wnba_total_table)
+wnba_model_table <- tibble()
+level = .9
+  
+for(i in wnba_teams) {
+  for(j in wnba_teams) {
+    a <- predict(wnba_model, newdata = data.frame(team = i, opponent = j, venue = "@"), interval = 'confidence',
+                 level = level)
+    b <- predict(wnba_model, newdata = data.frame(team = j, opponent = i, venue = ""), interval = 'confidence',
+                 level = level)
+    c <- rbind(a,b) %>%
+      as_tibble() %>%
+      select(lwr, upr) %>%
+      mutate(team = i,
+             opponent = j) %>%
+      summarise(team = team,
+                opponent = opponent,
+                lwr = sum(lwr),
+                upr = sum(upr))
+    
+  wnba_model_table <- rbind(wnba_model_table, c) 
+  
+  }
+}
+
+wnba_model_table <- wnba_model_table %>%
+  filter(row_number() %% 2 == 1,
+         team != opponent)
+
+```
