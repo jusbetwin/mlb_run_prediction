@@ -53,7 +53,7 @@ for(i in teams) {
 
 mlb_model <- lm(r ~ tm + opp + venue, mlb_total_table)
 mlb_model_table <- tibble()
-level = .9
+level = .95
   
 for(i in teams) {
   for(j in teams) {
@@ -133,7 +133,7 @@ for(i in wnba_teams) {
 
 wnba_model <- lm(score ~ team + opponent + venue, wnba_total_table)
 wnba_model_table <- tibble()
-level = .9
+level = .95
   
 for(i in wnba_teams) {
   for(j in wnba_teams) {
@@ -161,3 +161,5 @@ wnba_model_table <- wnba_model_table %>%
          team != opponent)
 
 ```
+
+

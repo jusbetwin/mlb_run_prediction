@@ -1,0 +1,92 @@
+---
+title: "strikeout_prediction"
+output: html_document
+date: '2022-07-05'
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(rvest)
+library(janitor)
+
+```
+
+```{r message=FALSE}
+
+pitcher_list <- read_csv("pitcher_list.csv") %>%
+  clean_names() %>%
+  filter(gs >= 8) %>%
+  mutate(name = str_replace(name, '\\*', ''),
+         link = paste0("https://www.baseball-reference.com/players/gl.fcgi?id=",id,"&t=p&year=2022")) %>%
+  select(-gs) %>%
+  distinct()
+
+```
+
+```{r}
+
+pitcher_games <- tibble()
+
+for(i in 1:nrow(pitcher_list)) {
+  
+  a <- read_html(pitcher_list$link[i]) %>%
+    html_table() %>%
+    pluck(1) %>%
+    rename(Venue = 6) %>%
+    clean_names() %>%
+    filter(tm != "Tm",
+           rk != "") %>%
+    mutate(name = pitcher_list$name[i],
+           venue = if_else(venue == "@", "away", "home"),
+           so = as.integer(so)) %>%
+    select("name", "venue", "opp", "so")
+  
+  pitcher_games <- bind_rows(a, pitcher_games)
+
+  }
+
+```
+
+### Make Model ###
+
+```{r}
+
+name <- pitcher_games$name %>%
+  unique()
+
+opp <- pitcher_games$opp %>%
+  unique
+
+venue = c("home", "away")
+
+all_combinations <- expand.grid(name = name, opp = opp, venue = venue) %>%
+  mutate(name = as.character(name),
+         venue = as.character(venue),
+         opp = as.character(opp))
+
+```
+
+
+```{r}
+
+strikeout_model <- lm(so ~ name + venue + opp, pitcher_games)
+
+all_combinations$predicted <- predict(strikeout_model, 
+             newdata = all_combinations,
+             interval = 'confidence') 
+  
+all_combinations$lower <- all_combinations$predicted[,"lwr"]
+all_combinations$upper <- all_combinations$predicted[,"upr"]
+
+all_combinations %>%
+  select(c("name":"venue"),"lower","upper") %>%
+  write_csv("all_combinations.csv")
+
+```
+
+
+
+
+
+
